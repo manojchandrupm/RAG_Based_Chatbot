@@ -1,4 +1,4 @@
-# RAG-Based Samsung Product Manual Chatbot
+# RAG_Based_Chatbot
 
 ## Overview
 A Retrieval-Augmented Generation chatbot that answers user queries based on Samsung appliance manuals. Uses LangChain, OpenAI LLM/embeddings, and FAISS vector database for scalable semantic search and context-aware responses.
