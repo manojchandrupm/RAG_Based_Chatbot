@@ -2,19 +2,23 @@ import os
 from qdrant_client import QdrantClient
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_qdrant import QdrantVectorStore
-from langchain.prompts import PromptTemplate, MessagesPlaceholder
+from langchain.prompts import PromptTemplate
 
 from typing import TypedDict, Annotated, Sequence
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from langchain_community.chat_message_histories import ChatMessageHistory
 import json
-from langgraph.graph import StateGraph, START, END
-
+from langgraph.graph import StateGraph, END
+# __________________________________________________________________________________________________
+# | - it is the updated version of the Bot_response_4                                              |
+# | - here the agent and the agent executer for each Document will be done by the Agent_maker this |
+# | agent_maker file will have the function to create agent , agent_executer.                      |
+# |________________________________________________________________________________________________|
 # -----------  SETUP  -------------
 openai_api_key = os.getenv("OPENAI_API_KEY")
-qdrant_api_key = os.getenv("QDRANT_API_KEY")
-qdrant_url = "https://6f973fc5-fbc1-4866-9aa0-0d28bfe66ffc.eu-west-1-0.aws.cloud.qdrant.io:6333"
+qdrant_api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.68ZUuPmNj55gFY2EqevFFIDSMa6cedmbvZFDnIUaffY"
+qdrant_url = "https://ee0c1f20-95c1-43b4-b713-4add293f6841.eu-west-1-0.aws.cloud.qdrant.io"
 
 
 qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
@@ -29,8 +33,8 @@ retriever_brother = vectorstore_brother.as_retriever(search_kwargs={"k": 3})
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, openai_api_key=openai_api_key)
 
 # -----------  Tools  -------------
-from agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
-from agent_tools.Brother_software_tool import Brother_software_Retriever
+from RAG_chatbot_React_subAgent.agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
+from RAG_chatbot_React_subAgent.agent_tools.Brother_software_tool import Brother_software_Retriever
 pexip_tool = Pexip_Administrator_Guide_Retriever(retriever=retriever_pexip,llm=llm)
 brother_tool = Brother_software_Retriever(retriever=retriever_brother,llm=llm)
 tools = [pexip_tool, brother_tool]
@@ -236,6 +240,19 @@ graph = workflow.compile()
 
 # ------------  INTERACTION LOOP --------------
 
+def handle_user_message(user_input: str, session_id: str) -> str:
+    # Build initial state and invoke graph as in your chatbot code
+    state = {
+        "raw_user_input": user_input,
+        "messages": [],
+        "enriched_query": None,
+        "clarification_question": None,
+        "response": None,
+        "session_id": session_id
+    }
+    result_state = graph.invoke(state)
+    return result_state["response"]
+
 session_id = "user-session-1"
 print("Welcome to the Support Assistant! How can I help you today?")
 while True:
@@ -244,15 +261,7 @@ while True:
         if user_input.lower() in ['q', 'quit', 'exit']:
             print("Goodbye!")
             break
-        state = {
-            "raw_user_input": user_input,
-            "messages": [],
-            "enriched_query": None,
-            "clarification_question": None,
-            "response": None,
-            "session_id": session_id
-        }
-        result_state = graph.invoke(state)
+        handle_user_message(user_input, session_id)
 
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
