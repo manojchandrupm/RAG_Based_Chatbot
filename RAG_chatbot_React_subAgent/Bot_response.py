@@ -8,8 +8,11 @@ from langchain.agents import create_react_agent, AgentExecutor
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
-from agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
-
+from RAG_chatbot_React_subAgent.agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
+# __________________________________________________________________________________________________
+# | - Here we added the qdrant vector DB instead of FAISS                                          |
+# | - Also Added the Indent Agent to Clarify the User Input                                        |                               |
+# |________________________________________________________________________________________________|
 openai_api_key = os.getenv("OPENAI_API_KEY")
 qdrant_api_key = os.getenv("QDRANT_API_KEY")
 qdrant_url = "https://6f973fc5-fbc1-4866-9aa0-0d28bfe66ffc.eu-west-1-0.aws.cloud.qdrant.io"

@@ -9,7 +9,11 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 import json
 
-from agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
+from RAG_chatbot_React_subAgent.agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
+# __________________________________________________________________________________________________
+# | - Here i have improved the system and indent agent prompt                                      |
+# | - converted the indent response into json format for handling the status of response           |                               |
+# |________________________________________________________________________________________________|
 
 openai_api_key = os.getenv("OPENAI_API_KEY")
 qdrant_api_key = os.getenv("QDRANT_API_KEY")

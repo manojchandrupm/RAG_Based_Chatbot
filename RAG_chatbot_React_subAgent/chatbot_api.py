@@ -1,3 +1,4 @@
+from flask import Flask, render_template, request, jsonify
 import os
 from qdrant_client import QdrantClient
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -9,41 +10,22 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from langchain_community.chat_message_histories import ChatMessageHistory
 import json
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain_core.runnables.history import RunnableWithMessageHistory
 from langgraph.graph import StateGraph, END
-# __________________________________________________________________________________________________
-# | - Here i have created the individual react_agent and agent_executor for each document          |
-# | - also i have created the individual retriever for each file                                   |
-# |________________________________________________________________________________________________|
+from datetime import datetime, timedelta
+import time
 # -----------  SETUP  -------------
 openai_api_key = os.getenv("OPENAI_API_KEY")
-qdrant_api_key = os.getenv("QDRANT_API_KEY")
-qdrant_url = "https://6f973fc5-fbc1-4866-9aa0-0d28bfe66ffc.eu-west-1-0.aws.cloud.qdrant.io:6333"
+qdrant_api_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIn0.68ZUuPmNj55gFY2EqevFFIDSMa6cedmbvZFDnIUaffY"
+qdrant_url = "https://ee0c1f20-95c1-43b4-b713-4add293f6841.eu-west-1-0.aws.cloud.qdrant.io:6333"
 
 
 qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
 embedding_fn = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=openai_api_key)
-vectorstore = QdrantVectorStore(client=qdrant_client, collection_name="chatbot_collection", embedding=embedding_fn)
+vectorstore_pexip = QdrantVectorStore(client=qdrant_client, collection_name="chatbot_collection", embedding=embedding_fn)
+vectorstore_brother = QdrantVectorStore(client=qdrant_client, collection_name="brother_software_collection", embedding=embedding_fn)
 
-retriever_pexip = vectorstore.as_retriever(search_kwargs={
-    "k": 3,
-    "filter": {
-        "must": [{
-            "key": "document_id",
-            "match": {"value": "Infinity_Apps_Guide_for_Administrators_v38"}
-        }]
-    }
-})
-retriever_brother = vectorstore.as_retriever(search_kwargs={
-    "k": 3,
-    "filter": {
-        "must": [{
-            "key": "document_id",
-            "match": {"value": "Brother_software_user_guide"}
-        }]
-    }
-})
+retriever_pexip = vectorstore_pexip.as_retriever(search_kwargs={"k": 3})
+retriever_brother = vectorstore_brother.as_retriever(search_kwargs={"k": 3})
 
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, openai_api_key=openai_api_key)
@@ -59,7 +41,7 @@ tools = [pexip_tool, brother_tool]
 
 react_agent_prompt = PromptTemplate.from_template("""
 ### Role
-- Primary Function: You are a charismatic and enthusiastic application support assistant dedicated to helping users with the Pexip Administration Guide. Your goal is to provide accurate, clear, and concise answers strictly based on the Pexip Administration Guide manual content.
+- Primary Function: You are a charismatic and enthusiastic application support assistant dedicated to helping users with two documents "the Pexip Administration Guide" and "Brother software User Guide". Your goal is to provide accurate, clear, and concise answers strictly based on this "the Pexip Administration Guide" and "Brother software User Guide" manuals content.
 - Draw upon expert communication principles to craft persuasive, friendly, and engaging responses that build trust.
 - Always provide short, digestible responses. Break longer responses into smaller paragraphs or bullet points.
 
@@ -76,7 +58,7 @@ react_agent_prompt = PromptTemplate.from_template("""
 5. If you cannot answer, respond warmly: "I’m sorry, I don’t have that info. Please contact support@[example.com] for help."
 6. Use minimal emojis to keep professionalism with friendliness.
 
-You have access to the following tools:
+Answer the following questions as best you can.You have access to the following tools:
 {tools}
 
 previous chatHistory :
@@ -98,7 +80,10 @@ Final Answer: the final answer to the original input question
 Begin!
 
 Question: {input}
-Thought:{agent_scratchpad}
+{agent_scratchpad}
+
+(Continue reasoning from previous Thought/Action/Observation steps. 
+Do not repeat the entire reasoning or previous actions.)
 """)
 
 
@@ -179,47 +164,16 @@ def intent_agent_node(state: AgentState):
 
             full_conversation_for_intent += f"\nAssistant: {clarification_question}\nUser: {follow_up}"
 
-agent = create_react_agent(
+#----------------  Agent Node --------------------
+from Agent_maker import AgentManager
+agent_manager = AgentManager(
     llm=llm,
-    prompt=react_agent_prompt,
-    tools=tools
+    prompt_template=react_agent_prompt,
+    tools=tools,
+    session_store=get_session_history
 )
-
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True,handle_parsing_errors=True)
-
-agent_with_history = RunnableWithMessageHistory(
-    agent_executor,
-    get_session_history,
-    input_messages_key="input",
-    history_messages_key="chat_history",
-)
-# Create per-tool agents/executors
-pexip_agent = create_react_agent(
-    llm=llm,
-    prompt=react_agent_prompt,
-    tools=[pexip_tool]
-)
-pexip_agent_executor = AgentExecutor(agent=pexip_agent, tools=[pexip_tool], verbose=True, handle_parsing_errors=True)
-pexip_agent_with_history = RunnableWithMessageHistory(
-    pexip_agent_executor,
-    get_session_history,
-    input_messages_key="input",
-    history_messages_key="chat_history",
-)
-
-brother_agent = create_react_agent(
-    llm=llm,
-    prompt=react_agent_prompt,
-    tools=[brother_tool]
-)
-brother_agent_executor = AgentExecutor(agent=brother_agent, tools=[brother_tool], verbose=True, handle_parsing_errors=True)
-brother_agent_with_history = RunnableWithMessageHistory(
-    brother_agent_executor,
-    get_session_history,
-    input_messages_key="input",
-    history_messages_key="chat_history",
-)
-
+pexip_subagent = agent_manager.create_subagent([pexip_tool], "pexip")
+brother_subagent = agent_manager.create_subagent([brother_tool], "brother")
 
 def select_tool_name(enriched_query: str) -> str:
     query_lower = enriched_query.lower()
@@ -236,18 +190,11 @@ def react_agent_node(state: AgentState) -> AgentState:
 
     tool_name = select_tool_name(enriched_query)
     if tool_name == "pexip":
-        result = pexip_agent_with_history.invoke(
-            {"input": enriched_query},
-            config={"configurable": {"session_id": session_id}}
-        )
+        result = pexip_subagent.invoke(enriched_query, session_id)
     elif tool_name == "brother":
-        result = brother_agent_with_history.invoke(
-            {"input": enriched_query},
-            config={"configurable": {"session_id": session_id}}
-        )
+        result = brother_subagent.invoke(enriched_query, session_id)
     else:
-        # fallback fallback tool or response
-        result = agent_with_history.invoke(
+        result = agent_manager.agent_with_history.invoke(
             {"input": enriched_query},
             config={"configurable": {"session_id": session_id}}
         )
@@ -289,26 +236,93 @@ workflow.add_edge("react_agent", END)
 
 graph = workflow.compile()
 
+# --------------chat history--------------------
+chat_history_store = {}
+
+def save_chat_record(session_id, user_query, bot_response):
+    if session_id not in chat_history_store:
+        chat_history_store[session_id] = []
+
+    record = {
+        "user_query": user_query,
+        "bot_response": bot_response,
+        "timestamp": datetime.now()
+    }
+    chat_history_store[session_id].append(record)
+
+# ---------------- clean up the old record----------------
+def cleanup_old_records():
+    cutoff_time = datetime.now() - timedelta(minutes=30)
+    for session_id in list(chat_history_store.keys()):
+        chat_history_store[session_id] = [
+            record for record in chat_history_store[session_id]
+            if record["timestamp"] > cutoff_time
+        ]
+        # Delete empty sessions
+        if not chat_history_store[session_id]:
+            del chat_history_store[session_id]
+
 # ------------  INTERACTION LOOP --------------
 
-session_id = "user-session-1"
-print("Welcome to the Support Assistant! How can I help you today?")
-while True:
-    try:
-        user_input = input("YOU: ")
-        if user_input.lower() in ['q', 'quit', 'exit']:
-            print("Goodbye!")
-            break
-        state = {
-            "raw_user_input": user_input,
-            "messages": [],
-            "enriched_query": None,
-            "clarification_question": None,
-            "response": None,
-            "session_id": session_id
-        }
-        result_state = graph.invoke(state)
+def handle_user_message(user_input: str, session_id: str) -> str:
+    # Build initial state and invoke graph as in your chatbot code
+    cleanup_old_records()
+    state = {
+        "raw_user_input": user_input,
+        "messages": [],
+        "enriched_query": None,
+        "clarification_question": None,
+        "response": None,
+        "session_id": session_id
+    }
+    result_state = graph.invoke(state)
+    save_chat_record(session_id, user_input, result_state["response"])
+    return result_state["response"]
 
+
+app = Flask(__name__)
+
+@app.route("/")
+@app.route("/Homepage")
+def home():
+    return render_template("chat.html")
+
+
+@app.route("/chat", methods=["POST"])
+def chat_endpoint():
+    data = request.get_json()
+    user_input = data.get("query")
+    session_id = data.get("session_id", "default-session")
+
+    if not user_input:
+        return jsonify({"error": "Query is required"}), 400
+
+    try:
+        response = handle_user_message(user_input, session_id)
+        return jsonify({
+            "response": response,
+            "session_id": session_id
+        })
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        break
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/test-history")
+def test_history():
+    return jsonify({
+        "chat_history_store": dict(chat_history_store),  # All sessions
+        "total_sessions": len(chat_history_store)
+    })
+
+# @app.route("/ragchatbot", methods=["GET", "POST"])
+# def response_page():
+#     if request.method == "POST":
+#         u = request.form.get("query")
+#         session_id = "web-session-1"
+#         response = handle_user_message(u, session_id)
+#         return render_template("bot_response.html", user_response=response)
+#     return render_template("chat.html")
+
+
+if __name__ == "__main__":
+    app.run(debug=True)

@@ -2,7 +2,7 @@ import os
 from qdrant_client import QdrantClient
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_qdrant import QdrantVectorStore
-from langchain.prompts import PromptTemplate, MessagesPlaceholder
+from langchain.prompts import PromptTemplate
 
 from typing import TypedDict, Annotated, Sequence
 from langchain_core.messages import BaseMessage
@@ -11,8 +11,11 @@ from langchain_community.chat_message_histories import ChatMessageHistory
 import json
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from langgraph.graph import StateGraph, START, END
-
+from langgraph.graph import StateGraph, END
+# __________________________________________________________________________________________________
+# | - Improved version of Bot_response_2                                                           |
+# | - Here i have only used two nodes the indent and react agent                                   |
+# |________________________________________________________________________________________________|
 # -----------  SETUP  -------------
 openai_api_key = os.getenv("OPENAI_API_KEY")
 qdrant_api_key = os.getenv("QDRANT_API_KEY")
@@ -27,7 +30,7 @@ retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, openai_api_key=openai_api_key)
 
 # -----------  Tools  -------------
-from agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
+from RAG_chatbot_React_subAgent.agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
 pexip_tool = Pexip_Administrator_Guide_Retriever(retriever=retriever,llm=llm)
 tools = [pexip_tool]
 

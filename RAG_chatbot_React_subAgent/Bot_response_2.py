@@ -1,6 +1,6 @@
 import os
 import json
-from typing import TypedDict, List, Annotated
+from typing import TypedDict, Annotated
 from operator import itemgetter
 from langchain_core.messages import BaseMessage, FunctionMessage, HumanMessage
 from langchain.agents import create_tool_calling_agent
@@ -10,7 +10,12 @@ from qdrant_client import QdrantClient
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_qdrant import QdrantVectorStore
 from langchain.prompts import PromptTemplate, MessagesPlaceholder
-
+# __________________________________________________________________________________________________
+# | - Here I have built the graph state to work on unified workflow                                |
+# | - created a individual function for each one (run_agent,indent_agent,Tool_executer) and added  |
+# |  in the graph as a node                                                                        |
+# | - the graph state is the dashboard which will hold all the values                              |
+# |________________________________________________________________________________________________|
 # --- 1. SETUP: Identical to before ---
 openai_api_key = os.getenv("OPENAI_API_KEY")
 qdrant_api_key = os.getenv("QDRANT_API_KEY")
@@ -23,7 +28,7 @@ retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
 llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, openai_api_key=openai_api_key)
 
-from agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
+from RAG_chatbot_React_subAgent.agent_tools.Pexip_administrator_guide_tool import Pexip_Administrator_Guide_Retriever
 
 pexip_tool = Pexip_Administrator_Guide_Retriever(retriever=retriever,llm=llm)
 tools = [pexip_tool]
