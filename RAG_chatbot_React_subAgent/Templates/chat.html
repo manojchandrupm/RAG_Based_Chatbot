@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Bot</title>
+</head>
+<body>
+    <div id="chat-container">
+        <form id="query-form">
+            <label>YOUR QUERY</label>
+            <input type="text" id="query" name="query">
+            <input type="submit" name="Submit">
+        </form>
+        <div id="response"></div>
+    </div>
+
+    <script>
+        let sessionId = localStorage.getItem('chat_session');
+        if (!sessionId) {
+            sessionId = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            localStorage.setItem('chat_session', sessionId);
+        }
+
+    document.getElementById('query-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const query = document.getElementById('query').value;
+
+        const response = await fetch('/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query: query, session_id: sessionId})
+        });
+
+        const data = await response.json();
+        document.getElementById('response').innerHTML =
+            `<div>BOT: ${data.response}</div>`;
+    });
+    </script>
+</body>
+</html>
